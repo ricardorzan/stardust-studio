@@ -331,33 +331,6 @@ export const StudioLyricsMonitor: React.FC<StudioLyricsMonitorProps> = ({
     onUpdateLyrics(updated);
   };
 
-  // Desplazar todos los versos por un offset en segundos (+/-)
-  const handleApplyOffset = (offsetSeconds: number) => {
-    if (lyrics.length === 0 || isNaN(offsetSeconds) || offsetSeconds === 0) return;
-
-    const updated = lyrics.map((line) => {
-      const newStart = Math.max(0, parseFloat((line.startTime + offsetSeconds).toFixed(2)));
-      const duration = Math.max(0.5, line.endTime - line.startTime);
-      const newEnd = parseFloat((newStart + duration).toFixed(2));
-      return {
-        ...line,
-        startTime: newStart,
-        endTime: newEnd,
-      };
-    });
-
-    onUpdateLyrics(updated);
-  };
-
-  // Alinear el inicio del primer verso a la posición actual de reproducción
-  const handleAlignToCurrentPlayback = () => {
-    if (lyrics.length === 0 || currentTime <= 0) return;
-    const firstLine = lyrics[0];
-    const delta = parseFloat((currentTime - firstLine.startTime).toFixed(2));
-    if (Math.abs(delta) < 0.05) return;
-    handleApplyOffset(delta);
-  };
-
   return (
     <div className="bg-[#12141a] border border-zinc-800 rounded-2xl flex flex-col h-full text-zinc-100 shadow-xl overflow-hidden">
       {/* Cabecera del Monitor de Letras */}
@@ -381,6 +354,20 @@ export const StudioLyricsMonitor: React.FC<StudioLyricsMonitorProps> = ({
           >
             <Clock className="w-3 h-3 text-emerald-400" />
             <span>Unir Transiciones</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowOffsetTool(!showOffsetTool)}
+            className={`text-[10px] px-2 py-1 rounded-md transition flex items-center gap-1 border cursor-pointer font-bold ${
+              showOffsetTool
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                : 'text-zinc-400 hover:text-zinc-200 bg-zinc-800/60 hover:bg-zinc-800 border-zinc-700/50'
+            }`}
+            title="Recorrer todos los versos hacia adelante o hacia atrás (+/- offset)"
+          >
+            <MoveHorizontal className="w-3 h-3 text-emerald-400" />
+            <span>Offset</span>
           </button>
 
           <button
@@ -425,6 +412,67 @@ export const StudioLyricsMonitor: React.FC<StudioLyricsMonitorProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Panel Desplegable de Offset Global */}
+      {showOffsetTool && (
+        <div className="p-2.5 px-4 bg-[#0a0d14] border-b border-zinc-800 flex flex-wrap items-center justify-between gap-2.5 text-xs animate-in slide-in-from-top-1">
+          <div className="flex items-center gap-2">
+            <span className="text-zinc-300 font-semibold text-[11px] flex items-center gap-1">
+              <Clock className="w-3 h-3 text-emerald-400" />
+              <span>Desplazar versos:</span>
+            </span>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                step="0.1"
+                placeholder="+1.5 o -1.0"
+                value={offsetInput}
+                onChange={(e) => setOffsetInput(e.target.value)}
+                className="w-20 bg-[#12151f] border border-zinc-700 text-zinc-100 placeholder:text-zinc-500 text-[11px] rounded-lg px-2 py-1 font-mono text-center focus:outline-none focus:border-emerald-500"
+              />
+              <span className="text-zinc-400 font-mono text-[10px]">seg</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const val = parseFloat(offsetInput);
+                if (!isNaN(val) && val !== 0) {
+                  handleApplyOffset(val);
+                  setOffsetInput('');
+                }
+              }}
+              disabled={!offsetInput || isNaN(parseFloat(offsetInput)) || parseFloat(offsetInput) === 0}
+              className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-black font-bold text-[10px] px-2.5 py-1 rounded-md transition cursor-pointer"
+            >
+              Aplicar
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1 flex-wrap">
+            <span className="text-zinc-500 text-[10px]">Rápidos:</span>
+            {[-2, -1, -0.5, 0.5, 1, 2].map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => handleApplyOffset(s)}
+                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white px-1.5 py-0.5 rounded text-[10px] font-mono border border-zinc-700/60 transition cursor-pointer"
+              >
+                {s > 0 ? `+${s}s` : `${s}s`}
+              </button>
+            ))}
+            {currentTime > 0 && lyrics.length > 0 && (
+              <button
+                type="button"
+                onClick={handleAlignToCurrentPlayback}
+                className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ml-1"
+                title={`Ajusta para que el primer verso inicie exactamente en el segundo actual (${currentTime.toFixed(2)}s)`}
+              >
+                Alinear al audio ({currentTime.toFixed(1)}s)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Barra de Diagnóstico en Vivo de Marcas de Tiempo */}
       {timingIssues.length > 0 && (
