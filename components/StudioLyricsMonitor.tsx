@@ -180,7 +180,16 @@ export const StudioLyricsMonitor: React.FC<StudioLyricsMonitorProps> = ({
     const prevLine = newLyrics[targetIdx];
     const startTime = prevLine ? (prevLine.endTime || prevLine.startTime + 3) : currentTime;
     const nextLine = newLyrics[targetIdx + 1];
-    const endTime = nextLine ? nextLine.startTime : startTime + 4;
+    
+    // Si no hay verso siguiente, extender inteligentemente hasta el final de la canción
+    let endTime: number;
+    if (nextLine) {
+      endTime = nextLine.startTime;
+    } else if (audioDuration > 0 && audioDuration > startTime) {
+      endTime = audioDuration;
+    } else {
+      endTime = startTime + 4;
+    }
 
     const instrumentalLine: LyricLine = {
       id: `inst-${Date.now()}`,
@@ -194,6 +203,50 @@ export const StudioLyricsMonitor: React.FC<StudioLyricsMonitorProps> = ({
     const insertPosition = targetIdx >= 0 ? targetIdx + 1 : 0;
     newLyrics.splice(insertPosition, 0, instrumentalLine);
     onUpdateLyrics(newLyrics);
+  };
+
+  // Modificar inicio o fin de un verso individual
+  const handleUpdateLineTimes = (index: number, newStart: number, newEnd: number) => {
+    if (index < 0 || index >= lyrics.length) return;
+    const validStart = Math.max(0, parseFloat(newStart.toFixed(2)));
+    const validEnd = parseFloat(Math.max(validStart + 0.2, newEnd).toFixed(2));
+    const updated = lyrics.map((l, i) => (i === index ? { ...l, startTime: validStart, endTime: validEnd } : l));
+    onUpdateLyrics(updated);
+  };
+
+  // Ajustar duración (+/- delta en segundos) de un verso individual
+  const handleAdjustDuration = (index: number, delta: number) => {
+    if (index < 0 || index >= lyrics.length) return;
+    const cur = lyrics[index];
+    const newEnd = Math.max(cur.startTime + 0.3, parseFloat((cur.endTime + delta).toFixed(2)));
+    handleUpdateLineTimes(index, cur.startTime, newEnd);
+  };
+
+  // Extender verso hasta el final del audio
+  const handleExtendLineToEndOfAudio = (index: number) => {
+    if (index < 0 || index >= lyrics.length || audioDuration <= 0) return;
+    const cur = lyrics[index];
+    if (audioDuration <= cur.startTime) return;
+    handleUpdateLineTimes(index, cur.startTime, parseFloat(audioDuration.toFixed(2)));
+  };
+
+  // Fijar inicio del verso en la posición actual de reproducción
+  const handleSetLineStartToCurrent = (index: number) => {
+    if (index < 0 || index >= lyrics.length) return;
+    const cur = lyrics[index];
+    const newStart = parseFloat(currentTime.toFixed(2));
+    const curDuration = Math.max(0.5, cur.endTime - cur.startTime);
+    const newEnd = parseFloat((newStart + curDuration).toFixed(2));
+    handleUpdateLineTimes(index, newStart, newEnd);
+  };
+
+  // Fijar fin del verso en la posición actual de reproducción
+  const handleSetLineEndToCurrent = (index: number) => {
+    if (index < 0 || index >= lyrics.length) return;
+    const cur = lyrics[index];
+    if (currentTime <= cur.startTime) return;
+    const newEnd = parseFloat(currentTime.toFixed(2));
+    handleUpdateLineTimes(index, cur.startTime, newEnd);
   };
 
   const handleDeleteLine = (index: number) => {
@@ -562,6 +615,93 @@ export const StudioLyricsMonitor: React.FC<StudioLyricsMonitorProps> = ({
                           className="w-full bg-black/60 border border-zinc-700 rounded-lg p-1.5 text-xs text-emerald-400 font-mono"
                           placeholder="Traducción en español..."
                         />
+
+                        {/* Controles de Inicio, Fin y Duración dentro del editor */}
+                        <div className="pt-2 border-t border-zinc-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] bg-black/40 p-2 rounded-lg">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-1">
+                              <span className="text-zinc-400 text-[10px]">Inicio:</span>
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={line.startTime}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value);
+                                  if (!isNaN(val)) handleUpdateLineTimes(idx, val, line.endTime);
+                                }}
+                                className="w-16 bg-[#161922] border border-zinc-700 rounded px-1.5 py-0.5 text-zinc-100 font-mono text-center text-[10px] focus:outline-none focus:border-emerald-500"
+                              />
+                              <span className="text-zinc-500 text-[10px]">s</span>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <span className="text-zinc-400 text-[10px]">Fin:</span>
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={line.endTime}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value);
+                                  if (!isNaN(val)) handleUpdateLineTimes(idx, line.startTime, val);
+                                }}
+                                className="w-16 bg-[#161922] border border-zinc-700 rounded px-1.5 py-0.5 text-zinc-100 font-mono text-center text-[10px] focus:outline-none focus:border-emerald-500"
+                              />
+                              <span className="text-zinc-500 text-[10px]">s</span>
+                            </div>
+
+                            <span className="text-zinc-300 font-mono text-[10px] bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700/60">
+                              Duración: <strong>{Math.max(0, line.endTime - line.startTime).toFixed(2)}s</strong>
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="text-zinc-500 text-[9px]">Duración:</span>
+                            {[-1, -0.5, 0.5, 1].map((delta) => (
+                              <button
+                                key={delta}
+                                type="button"
+                                onClick={() => handleAdjustDuration(idx, delta)}
+                                className="px-1.5 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded font-mono text-[10px] border border-zinc-700/60 cursor-pointer"
+                                title={`Ajustar duración en ${delta > 0 ? `+${delta}` : delta}s`}
+                              >
+                                {delta > 0 ? `+${delta}` : delta}s
+                              </button>
+                            ))}
+
+                            {currentTime > 0 && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetLineStartToCurrent(idx)}
+                                  className="px-1.5 py-0.5 bg-zinc-800 hover:bg-emerald-500/20 text-zinc-300 hover:text-emerald-300 rounded text-[10px] border border-zinc-700/60 cursor-pointer"
+                                  title={`Fijar inicio del verso en la aguja de reproducción actual (${currentTime.toFixed(1)}s)`}
+                                >
+                                  Inicio = {currentTime.toFixed(1)}s
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetLineEndToCurrent(idx)}
+                                  disabled={currentTime <= line.startTime}
+                                  className="px-1.5 py-0.5 bg-zinc-800 hover:bg-emerald-500/20 disabled:opacity-30 text-zinc-300 hover:text-emerald-300 rounded text-[10px] border border-zinc-700/60 cursor-pointer"
+                                  title={`Fijar fin del verso en la aguja de reproducción actual (${currentTime.toFixed(1)}s)`}
+                                >
+                                  Fin = {currentTime.toFixed(1)}s
+                                </button>
+                              </>
+                            )}
+
+                            {(idx === lyrics.length - 1 || line.endTime < audioDuration - 1) && audioDuration > line.startTime && (
+                              <button
+                                type="button"
+                                onClick={() => handleExtendLineToEndOfAudio(idx)}
+                                className="px-2 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded text-[10px] font-bold border border-emerald-500/40 cursor-pointer"
+                                title={`Extender hasta el final del audio (${audioDuration.toFixed(2)}s)`}
+                              >
+                                Hasta el final ({audioDuration.toFixed(1)}s)
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ) : isInstrumental ? (
                       <div className="flex items-center gap-2">
@@ -613,6 +753,18 @@ export const StudioLyricsMonitor: React.FC<StudioLyricsMonitorProps> = ({
                     >
                       <span>Unir</span>
                       <span className="text-[9px] opacity-75">({gapBeforeNext.toFixed(1)}s)</span>
+                    </button>
+                  )}
+
+                  {/* Botón rápido si es el último verso y hay tiempo restante de audio */}
+                  {idx === lyrics.length - 1 && audioDuration > line.endTime + 0.5 && (
+                    <button
+                      type="button"
+                      onClick={() => handleExtendLineToEndOfAudio(idx)}
+                      className="px-2 py-0.5 rounded text-[10px] font-mono text-emerald-300 hover:text-black hover:bg-emerald-400 bg-emerald-500/15 border border-emerald-500/30 transition cursor-pointer flex items-center gap-1 font-bold"
+                      title={`Extender hasta el final del audio (${audioDuration.toFixed(2)}s)`}
+                    >
+                      <span>Hasta el final ({audioDuration.toFixed(1)}s)</span>
                     </button>
                   )}
 

@@ -28,6 +28,8 @@ import {
   ArrowRightLeft,
   Merge,
   MoveHorizontal,
+  Pencil,
+  Check,
 } from 'lucide-react';
 
 interface LyricsReviewStepProps {
@@ -91,6 +93,7 @@ export const LyricsReviewStep: React.FC<LyricsReviewStepProps> = ({
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const [activeChorusFilterKey, setActiveChorusFilterKey] = useState<string | null>(null);
+  const [editingTimeLineId, setEditingTimeLineId] = useState<string | null>(null);
 
   // Estados para vincular audio si no está presente
   const [fallbackUrlInput, setFallbackUrlInput] = useState('');
@@ -398,13 +401,19 @@ export const LyricsReviewStep: React.FC<LyricsReviewStepProps> = ({
     }
   };
 
-  // Alternar instrumental
+  // Alternar instrumental (con extensión automática si es el último verso)
   const handleToggleInstrumental = (id: string) => {
-    const updated = lyrics.map((l) => {
+    const lastIndex = lyrics.length - 1;
+    const updated = lyrics.map((l, idx) => {
       if (l.id === id) {
         const isInst = !l.isInstrumental;
+        let newEnd = l.endTime;
+        if (isInst && idx === lastIndex && audioDuration > l.startTime) {
+          newEnd = parseFloat(audioDuration.toFixed(2));
+        }
         return {
           ...l,
+          endTime: newEnd,
           isInstrumental: isInst,
           original: isInst ? '♪ Instrumental ♪' : '',
           translated: isInst ? '♪ Instrumental ♪' : '',
@@ -415,11 +424,46 @@ export const LyricsReviewStep: React.FC<LyricsReviewStepProps> = ({
     onUpdateLyrics(updated);
   };
 
-  // Agregar nuevo verso
+  // Insertar un interludio instrumental
+  const handleInsertInstrumental = (afterIndex?: number) => {
+    const targetIdx = afterIndex !== undefined ? afterIndex : lyrics.length - 1;
+    const prevLine = lyrics[targetIdx];
+    const startTime = prevLine ? (prevLine.endTime || prevLine.startTime + 3) : currentTime;
+    const nextLine = lyrics[targetIdx + 1];
+
+    let endTime: number;
+    if (nextLine) {
+      endTime = nextLine.startTime;
+    } else if (audioDuration > 0 && audioDuration > startTime) {
+      endTime = audioDuration;
+    } else {
+      endTime = startTime + 4;
+    }
+
+    const instrumentalLine: LyricLine = {
+      id: `inst-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      original: '♪ Instrumental ♪',
+      translated: '♪ Instrumental ♪',
+      startTime: parseFloat(startTime.toFixed(2)),
+      endTime: parseFloat(endTime.toFixed(2)),
+      isInstrumental: true,
+    };
+
+    const insertPosition = targetIdx >= 0 ? targetIdx + 1 : 0;
+    const newLyrics = [...lyrics];
+    newLyrics.splice(insertPosition, 0, instrumentalLine);
+    onUpdateLyrics(newLyrics);
+    showToast('Interludio instrumental insertado.');
+  };
+
+  // Agregar nuevo verso (con cálculo inteligente al final)
   const handleAddLine = (afterIndex: number) => {
     const prev = lyrics[afterIndex];
     const newStart = prev ? parseFloat((prev.endTime + 0.1).toFixed(2)) : 0;
-    const newEnd = parseFloat((newStart + 3.5).toFixed(2));
+    const isAtEnd = afterIndex === lyrics.length - 1 || (afterIndex === -1 && lyrics.length === 0);
+    const newEnd = isAtEnd && audioDuration > 0 && audioDuration > newStart
+      ? parseFloat(audioDuration.toFixed(2))
+      : parseFloat((newStart + 3.5).toFixed(2));
 
     const newLine: LyricLine = {
       id: `line-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -432,6 +476,64 @@ export const LyricsReviewStep: React.FC<LyricsReviewStepProps> = ({
     const newLyrics = [...lyrics];
     newLyrics.splice(afterIndex + 1, 0, newLine);
     onUpdateLyrics(newLyrics);
+  };
+
+  // Modificar tiempo de un verso
+  const handleUpdateLineTimes = (id: string, newStart: number, newEnd: number) => {
+    const updated = lyrics.map((l) => {
+      if (l.id === id) {
+        const validStart = Math.max(0, parseFloat(newStart.toFixed(2)));
+        const validEnd = parseFloat(Math.max(validStart + 0.2, newEnd).toFixed(2));
+        return {
+          ...l,
+          startTime: validStart,
+          endTime: validEnd,
+        };
+      }
+      return l;
+    });
+    onUpdateLyrics(updated);
+  };
+
+  // Ajustar duración (+/- delta en segundos)
+  const handleAdjustDuration = (id: string, delta: number) => {
+    const line = lyrics.find((l) => l.id === id);
+    if (!line) return;
+    const newEnd = Math.max(line.startTime + 0.3, parseFloat((line.endTime + delta).toFixed(2)));
+    handleUpdateLineTimes(id, line.startTime, newEnd);
+  };
+
+  // Extender verso hasta el final del audio
+  const handleExtendLineToEndOfAudio = (id: string) => {
+    if (audioDuration <= 0) return;
+    const line = lyrics.find((l) => l.id === id);
+    if (!line) return;
+    if (audioDuration <= line.startTime) return;
+    handleUpdateLineTimes(id, line.startTime, parseFloat(audioDuration.toFixed(2)));
+    showToast(`Verso extendido hasta el final del audio (${audioDuration.toFixed(2)}s).`);
+  };
+
+  // Fijar inicio del verso en la posición actual del audio
+  const handleSetLineStartToCurrentPlayback = (id: string) => {
+    const line = lyrics.find((l) => l.id === id);
+    if (!line || currentTime < 0) return;
+    const newStart = parseFloat(currentTime.toFixed(2));
+    const curDuration = Math.max(0.5, line.endTime - line.startTime);
+    const newEnd = parseFloat((newStart + curDuration).toFixed(2));
+    handleUpdateLineTimes(id, newStart, newEnd);
+    showToast(`Inicio fijado en ${newStart.toFixed(2)}s`);
+  };
+
+  // Fijar fin del verso en la posición actual del audio
+  const handleSetLineEndToCurrentPlayback = (id: string) => {
+    const line = lyrics.find((l) => l.id === id);
+    if (!line || currentTime <= line.startTime) {
+      showToast('El punto de reproducción debe ser posterior al inicio del verso.');
+      return;
+    }
+    const newEnd = parseFloat(currentTime.toFixed(2));
+    handleUpdateLineTimes(id, line.startTime, newEnd);
+    showToast(`Fin fijado en ${newEnd.toFixed(2)}s`);
   };
 
   // Eliminar verso
@@ -880,6 +982,17 @@ export const LyricsReviewStep: React.FC<LyricsReviewStepProps> = ({
               <Plus className="w-3.5 h-3.5 text-emerald-400" />
               <span>Añadir Verso</span>
             </button>
+
+            {/* Añadir interludio al final */}
+            <button
+              type="button"
+              onClick={() => handleInsertInstrumental(lyrics.length - 1)}
+              className="bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-zinc-700/60 transition cursor-pointer flex items-center gap-1"
+              title="Añadir pausa o solo instrumental al final (cubre el resto del audio)"
+            >
+              <Music className="w-3.5 h-3.5 text-emerald-400" />
+              <span>+ ♪ Interludio</span>
+            </button>
           </div>
         </div>
 
@@ -1042,6 +1155,22 @@ export const LyricsReviewStep: React.FC<LyricsReviewStepProps> = ({
                       <span className={`text-xs font-mono font-bold ${isCurrentActive ? 'text-emerald-400' : 'text-zinc-400'}`}>
                         #{originalIndex + 1}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditingTimeLineId(editingTimeLineId === line.id ? null : line.id)}
+                        className={`p-1 rounded transition cursor-pointer ${
+                          editingTimeLineId === line.id
+                            ? 'bg-emerald-500/20 text-emerald-300'
+                            : 'text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800'
+                        }`}
+                        title={editingTimeLineId === line.id ? 'Cerrar edición de tiempos' : 'Editar tiempos e inicio/fin'}
+                      >
+                        {editingTimeLineId === line.id ? (
+                          <Check className="w-3 h-3 text-emerald-400" />
+                        ) : (
+                          <Pencil className="w-3 h-3" />
+                        )}
+                      </button>
                       {isCurrentActive && (
                         <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse">
                           ACTIVO
@@ -1049,45 +1178,149 @@ export const LyricsReviewStep: React.FC<LyricsReviewStepProps> = ({
                       )}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!audioUrl) return;
-                        onSeek(line.startTime);
-                        if (!isPlaying) onTogglePlay();
-                      }}
-                      disabled={!audioUrl}
-                      className={`w-full text-[10px] font-mono px-2 py-1.5 rounded-xl border transition cursor-pointer flex flex-col items-center gap-0.5 ${
-                        isCurrentActive
-                          ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-xs'
-                          : 'bg-zinc-800/70 hover:bg-zinc-800 border-zinc-700/60 text-zinc-300 hover:text-white'
-                      }`}
-                      title={audioUrl ? 'Reproducir desde este verso' : 'Falta audio'}
-                    >
-                      <div className="flex items-center gap-1 font-semibold">
-                        <Play className="w-2.5 h-2.5 fill-current text-emerald-400" />
-                        <span>{line.startTime.toFixed(2)}s → {line.endTime.toFixed(2)}s</span>
-                      </div>
-                      <div className="text-[10px] text-zinc-400 font-sans">
-                        Duración: <strong className="text-zinc-200">{duration.toFixed(2)}s</strong>
-                      </div>
-                    </button>
+                    {editingTimeLineId === line.id ? (
+                      /* Formulario de Edición Precisa de Tiempos */
+                      <div className="w-full space-y-1.5 p-2 bg-[#0c0f17] rounded-xl border border-emerald-500/40 text-[10px] animate-in fade-in-50">
+                        <div className="grid grid-cols-2 gap-1 text-[10px]">
+                          <div>
+                            <label className="text-[9px] text-zinc-400 block font-semibold">Inicio (s)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={line.startTime}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value);
+                                if (!isNaN(v)) handleUpdateLineTimes(line.id, v, line.endTime);
+                              }}
+                              className="w-full bg-[#151924] border border-zinc-700 rounded px-1 py-0.5 text-zinc-100 font-mono text-center focus:outline-none focus:border-emerald-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-zinc-400 block font-semibold">Fin (s)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={line.endTime}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value);
+                                if (!isNaN(v)) handleUpdateLineTimes(line.id, line.startTime, v);
+                              }}
+                              className="w-full bg-[#151924] border border-zinc-700 rounded px-1 py-0.5 text-zinc-100 font-mono text-center focus:outline-none focus:border-emerald-500"
+                            />
+                          </div>
+                        </div>
 
-                    {/* Alerta interactiva si el verso termina antes del siguiente */}
-                    {gapBeforeNext > 0.15 && (
-                      <div className="w-full flex items-center justify-between gap-1 px-1.5 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[10px] text-amber-300">
-                        <span title={`Hay un silencio de ${gapBeforeNext}s antes de que inicie el verso #${originalIndex + 2}`}>
-                          Pausa {gapBeforeNext.toFixed(1)}s
-                        </span>
+                        {/* Duración y botones +/- */}
+                        <div className="flex items-center justify-between pt-0.5">
+                          <span className="text-[9px] text-zinc-300 font-mono">
+                            Dur: <strong>{duration.toFixed(2)}s</strong>
+                          </span>
+                          <div className="flex items-center gap-0.5">
+                            {[-1, -0.5, 0.5, 1].map((delta) => (
+                              <button
+                                key={delta}
+                                type="button"
+                                onClick={() => handleAdjustDuration(line.id, delta)}
+                                className="px-1 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded font-mono text-[9px] border border-zinc-700/60 cursor-pointer"
+                                title={`Ajustar duración ${delta > 0 ? `+${delta}` : delta}s`}
+                              >
+                                {delta > 0 ? `+${delta}` : delta}s
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Botones de Captura con Audio */}
+                        {audioUrl && (
+                          <div className="grid grid-cols-2 gap-1 pt-1 border-t border-zinc-800">
+                            <button
+                              type="button"
+                              onClick={() => handleSetLineStartToCurrentPlayback(line.id)}
+                              className="px-1 py-0.5 bg-zinc-800 hover:bg-emerald-500/20 text-zinc-300 hover:text-emerald-300 rounded text-[9px] truncate cursor-pointer border border-zinc-700/50"
+                              title={`Fijar inicio en posición actual (${currentTime.toFixed(1)}s)`}
+                            >
+                              Inic = {currentTime.toFixed(1)}s
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetLineEndToCurrentPlayback(line.id)}
+                              disabled={currentTime <= line.startTime}
+                              className="px-1 py-0.5 bg-zinc-800 hover:bg-emerald-500/20 disabled:opacity-30 text-zinc-300 hover:text-emerald-300 rounded text-[9px] truncate cursor-pointer border border-zinc-700/50"
+                              title={`Fijar fin en posición actual (${currentTime.toFixed(1)}s)`}
+                            >
+                              Fin = {currentTime.toFixed(1)}s
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Botón Extender al final */}
+                        {(originalIndex === lyrics.length - 1 || line.endTime < audioDuration - 1) && audioDuration > line.startTime && (
+                          <button
+                            type="button"
+                            onClick={() => handleExtendLineToEndOfAudio(line.id)}
+                            className="w-full mt-1 px-1.5 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 rounded text-[9px] font-bold cursor-pointer truncate"
+                            title="Extender este verso hasta el final del audio"
+                          >
+                            Hasta el fin ({audioDuration.toFixed(1)}s)
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      /* Visualización Estándar con Botón de Reproducir */
+                      <>
                         <button
                           type="button"
-                          onClick={() => handleExtendToNextLine(line.id)}
-                          className="font-bold text-amber-400 hover:text-amber-200 underline cursor-pointer text-[10px]"
-                          title="Extender este verso hasta el inicio del siguiente para que no se corte antes"
+                          onClick={() => {
+                            if (!audioUrl) return;
+                            onSeek(line.startTime);
+                            if (!isPlaying) onTogglePlay();
+                          }}
+                          disabled={!audioUrl}
+                          className={`w-full text-[10px] font-mono px-2 py-1.5 rounded-xl border transition cursor-pointer flex flex-col items-center gap-0.5 ${
+                            isCurrentActive
+                              ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-xs'
+                              : 'bg-zinc-800/70 hover:bg-zinc-800 border-zinc-700/60 text-zinc-300 hover:text-white'
+                          }`}
+                          title={audioUrl ? 'Reproducir desde este verso' : 'Falta audio'}
                         >
-                          Unir
+                          <div className="flex items-center gap-1 font-semibold">
+                            <Play className="w-2.5 h-2.5 fill-current text-emerald-400" />
+                            <span>{line.startTime.toFixed(2)}s → {line.endTime.toFixed(2)}s</span>
+                          </div>
+                          <div className="text-[10px] text-zinc-400 font-sans">
+                            Duración: <strong className="text-zinc-200">{duration.toFixed(2)}s</strong>
+                          </div>
                         </button>
-                      </div>
+
+                        {/* Alerta interactiva si el verso termina antes del siguiente */}
+                        {gapBeforeNext > 0.15 && (
+                          <div className="w-full flex items-center justify-between gap-1 px-1.5 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[10px] text-amber-300">
+                            <span title={`Hay un silencio de ${gapBeforeNext}s antes de que inicie el verso #${originalIndex + 2}`}>
+                              Pausa {gapBeforeNext.toFixed(1)}s
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleExtendToNextLine(line.id)}
+                              className="font-bold text-amber-400 hover:text-amber-200 underline cursor-pointer text-[10px]"
+                              title="Extender este verso hasta el inicio del siguiente para que no se corte antes"
+                            >
+                              Unir
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Botón rápido si es el último verso y sobra audio al final */}
+                        {originalIndex === lyrics.length - 1 && audioDuration > line.endTime + 0.5 && (
+                          <button
+                            type="button"
+                            onClick={() => handleExtendLineToEndOfAudio(line.id)}
+                            className="w-full px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-mono text-[9px] font-bold cursor-pointer transition flex items-center justify-center gap-1"
+                            title={`Extender este verso hasta el final del audio (${audioDuration.toFixed(2)}s)`}
+                          >
+                            <span>Hasta el final ({audioDuration.toFixed(1)}s)</span>
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
 
@@ -1179,6 +1412,15 @@ export const LyricsReviewStep: React.FC<LyricsReviewStepProps> = ({
                         <Merge className="w-3.5 h-3.5" />
                       </button>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => handleInsertInstrumental(originalIndex)}
+                      className="p-1.5 rounded-lg text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800 transition cursor-pointer"
+                      title="Insertar solo / interludio instrumental debajo de este verso"
+                    >
+                      <Music className="w-3.5 h-3.5" />
+                    </button>
 
                     <button
                       type="button"
