@@ -1,26 +1,216 @@
+@import "https://fonts.googleapis.com/css2?family=Host+Grotesk:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Inter:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,500;0,700;1,500;1,700&family=Roboto+Mono:wght@400;500;700&display=swap";
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  /* Unified Dark Studio System */
+  --dp-color-ground: #090a0f;
+  --dp-color-panel: #12151f;
+  --dp-color-panel-elevated: #181d2a;
+  --dp-color-ground-muted: #1c2230;
+  --dp-color-rule: #232a3b;
+  --dp-color-ink: #f3f4f6;
+  --dp-color-ink-secondary: #94a3b8;
+  --dp-color-ink-muted: #64748b;
+  --dp-color-accent: #10b981;
+  --dp-color-accent-hover: #059669;
+  --dp-color-on-accent: #020617;
+  --dp-color-field: #0a0c12;
+  --dp-color-on-field: #f3f4f6;
+  --dp-color-on-field-secondary: #94a3b8;
+  
+  --dp-typography-fallback: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --dp-typography-body: 15px;
+  --dp-typography-interface: 14px;
+  --dp-typography-small: 13px;
+  --dp-typography-metadata: 12px;
+  --dp-typography-label: 11px;
+  --dp-typography-body-leading: 1.5;
+  --dp-spacing-grid-gap: 20px;
+  --dp-radius-panel: 14px;
+  --dp-border-hairline: 1px;
+  --dp-motion-interaction: 140ms;
+  --dp-motion-easing: cubic-bezier(0.16, 1, 0.3, 1);
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* Fonts */
+  --font-display: 'Host Grotesk', var(--dp-typography-fallback);
+  --font-body: 'Instrument Sans', var(--dp-typography-fallback);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Variables fallback */
+  --background: #090a0f;
+  --foreground: #f3f4f6;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #090a0f;
+  color: #f3f4f6;
+  font-family: var(--font-body);
+  font-size: var(--dp-typography-body);
+  line-height: var(--dp-typography-body-leading);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography Helpers */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+h1, h2, h3, .heading-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #f3f4f6;
+}
+
+/* Studio Panel / Card */
+.dp-card {
+  background-color: #12151f !important;
+  border: 1px solid #232a3b !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.5) !important;
+  color: #f3f4f6 !important;
+}
+
+/* Primary Action Buttons (Studio Emerald) */
+.dp-btn-primary {
+  background-color: #10b981 !important;
+  color: #000000 !important;
+  border-radius: 12px !important;
+  padding: 8px 16px !important;
+  font-family: var(--font-body) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+  border: none !important;
+  transition: all 140ms ease !important;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.25) !important;
+}
+
+.dp-btn-primary:hover:not(:disabled) {
+  background-color: #34d399 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35) !important;
+}
+
+.dp-btn-primary:active:not(:disabled) {
+  transform: translateY(0) !important;
+}
+
+.dp-btn-primary:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 2px #090a0f, 0 0 0 4px #10b981 !important;
+}
+
+.dp-btn-primary:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Secondary Action Buttons (Studio Slate) */
+.dp-btn-secondary {
+  background-color: #27272a !important;
+  border: 1px solid #3f3f46 !important;
+  color: #e4e4e7 !important;
+  border-radius: 12px !important;
+  padding: 8px 16px !important;
+  font-family: var(--font-body) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+  transition: all 140ms ease !important;
+}
+
+.dp-btn-secondary:hover:not(:disabled) {
+  background-color: #3f3f46 !important;
+  color: #ffffff !important;
+  border-color: #52525b !important;
+  transform: translateY(-1px) !important;
+}
+
+.dp-btn-secondary:active:not(:disabled) {
+  transform: translateY(0) !important;
+}
+
+.dp-btn-secondary:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 2px #090a0f, 0 0 0 4px #10b981 !important;
+}
+
+.dp-btn-secondary:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* Form Inputs & Controls */
+.dp-input {
+  background-color: #0a0c12 !important;
+  border: 1px solid #232a3b !important;
+  color: #f3f4f6 !important;
+  border-radius: 12px !important;
+  font-family: var(--font-body) !important;
+  font-size: 13px !important;
+  transition: all 140ms ease !important;
+}
+
+.dp-input::placeholder {
+  color: #64748b !important;
+}
+
+.dp-input:focus {
+  outline: none !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2) !important;
+}
+
+details summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Custom Studio Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090a0f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #232a3b;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #333d52;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+    transform: none !important;
+  }
 }

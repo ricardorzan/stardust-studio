@@ -1,6 +1,6 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
+# ==============================================================================
+# DEPENDENCIES
+# ==============================================================================
 /node_modules
 /.pnp
 .pnp.*
@@ -10,32 +10,88 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
+# ==============================================================================
+# TESTING & COVERAGE
+# ==============================================================================
 /coverage
 
-# next.js
+# ==============================================================================
+# NEXT.JS & PRODUCTION BUILDS
+# ==============================================================================
 /.next/
 /out/
-
-# production
 /build
+/dist
 
-# misc
-.DS_Store
+# ==============================================================================
+# ENVIRONMENT VARIABLES & SECRETS
+# ==============================================================================
+.env*
+!.env.example
 *.pem
 
-# debug
+# ==============================================================================
+# TYPESCRIPT
+# ==============================================================================
+*.tsbuildinfo
+next-env.d.ts
+
+# ==============================================================================
+# VERCEL
+# ==============================================================================
+.vercel
+
+# ==============================================================================
+# REMOTION & VIDEO RENDERING
+# ==============================================================================
+.remotion
+public/output-*.mp4
+*.mp4
+
+# ==============================================================================
+# STARDUST STUDIO: JOBS, AUDIOS, IMAGES, PROJECTS & DOWNLOADS
+# ==============================================================================
+# Binarios y ejecutables externos
+/bin/*
+!/bin/.gitkeep
+*.exe
+
+# Carpeta de descargas y datos dinámicos generados
+/public/downloads/.jobs/*
+!/public/downloads/.jobs/.gitkeep
+/public/downloads/audios/*
+!/public/downloads/audios/.gitkeep
+/public/downloads/images/*
+!/public/downloads/images/.gitkeep
+/public/downloads/projects/*
+!/public/downloads/projects/.gitkeep
+/public/downloads/videos/*
+!/public/downloads/videos/.gitkeep
+
+# Cobertura genérica para archivos de audio, video y proyectos exportados
+*.mp3
+*.m4a
+*.wav
+*.aac
+*.flac
+*.ogg
+*.opus
+stardust_*.json
+*.project.json
+render-*.json
+
+# ==============================================================================
+# LOGS & OS / IDE ARTIFACTS
+# ==============================================================================
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
